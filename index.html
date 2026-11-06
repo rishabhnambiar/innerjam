@@ -302,6 +302,7 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 "use strict";
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
+const normProg = e => typeof e === "number" ? {d:e,s:"3"} : (e.s ? e : {...e,s:"3"});
 
 /* ---------- Music data ---------- */
 const LET = ["C","D","E","F","G","A","B"];
@@ -335,7 +336,12 @@ const QUAL = {
   "7":{sym:"7",cls:"maj",up:true,suf:"7"}, maj7:{sym:"maj7",cls:"maj",up:true,suf:"maj7"},
   m7:{sym:"m7",cls:"min",up:false,suf:"7"}, m7b5:{sym:"m7♭5",cls:"dim",up:false,suf:"ø7"},
   dim7:{sym:"dim7",cls:"dim",up:false,suf:"°7"}, mMaj7:{sym:"m(maj7)",cls:"min",up:false,suf:"(maj7)"},
-  maj7s5:{sym:"maj7♯5",cls:"aug",up:true,suf:"+maj7"}
+  maj7s5:{sym:"maj7♯5",cls:"aug",up:true,suf:"+maj7"},
+  "9":{sym:"9",cls:"maj",up:true,suf:"9"}, maj9:{sym:"maj9",cls:"maj",up:true,suf:"maj9"},
+  m9:{sym:"m9",cls:"min",up:false,suf:"9"}, m9b5:{sym:"m9♭5",cls:"dim",up:false,suf:"ø9"},
+  mMaj9:{sym:"m(maj9)",cls:"min",up:false,suf:"(maj9)"}, maj9s5:{sym:"maj9♯5",cls:"aug",up:true,suf:"+maj9"},
+  "13":{sym:"13",cls:"maj",up:true,suf:"13"}, maj13:{sym:"maj13",cls:"maj",up:true,suf:"maj13"},
+  m13:{sym:"m13",cls:"min",up:false,suf:"13"}
 };
 const SHAPES = {
   maj:{E:[0,2,2,1,0,0],A:[null,0,2,2,2,0]},
@@ -368,17 +374,23 @@ const INV = ["Root position","1st inversion","2nd inversion"];
 const STORE = "innerjam:v1";
 const state = {
   root:0, mode:"major", panel:null, gSub:"chords", pSub:"chords",
-  seventh:false, gMode:"strum", strings:"top", bpm:90, beats:4, prog:null,
+  chordSize:"3", gMode:"strum", strings:"top", bpm:90, beats:4, prog:null,
   scalePattern:"updown", scaleOct:3, scaleAfter:"up", scaleCue:true, scaleBpm:90,
   labels:"deg", shapeIdx:0, metroBpm:120,
   voicing:{}, view:null
 };
 try{
   const s = JSON.parse(localStorage.getItem(STORE) || localStorage.getItem("dhun:v1") || localStorage.getItem("keywheel:v2") || localStorage.getItem("keywheel:v1") || "null");
-  if(s){ delete s.view; delete s.panel; Object.assign(state, s, {voicing:{}, panel:null}); }
+  if(s){
+    delete s.view; delete s.panel;
+    if(s.seventh !== undefined){ s.chordSize = s.seventh ? "7" : "3"; delete s.seventh; }
+    if(Array.isArray(s.prog)) s.prog = s.prog.map(normProg);
+    Object.assign(state, s, {voicing:{}, panel:null});
+  }
 }catch(e){}
 if(!MODES[state.mode]) state.mode = "major";
-if(!Array.isArray(state.prog)) state.prog = PRESETS[state.mode][0][0].slice();
+if(!Array.isArray(state.prog)) state.prog = PRESETS[state.mode][0][0].map(d => ({d,s:"3"}));
+else state.prog = state.prog.map(normProg);
 function save(){
   try{ const {voicing, view, panel, ...rest} = state; localStorage.setItem(STORE, JSON.stringify(rest)); }catch(e){}
 }
@@ -409,13 +421,15 @@ function sevQ(t, i7){
   if(t==="dim") return i7===9?"dim7":"m7b5";
   return "maj7s5";
 }
+function ninQ(q){ return {"7":"9","maj7":"maj9","m7":"m9","m7b5":"m9b5","dim7":"m9b5","mMaj7":"mMaj9","maj7s5":"maj9s5"}[q]||q; }
+function thirQ(q){ return {"9":"13","maj9":"maj13","m9":"m13"}[q]||q; }
 function chordView(){
   if(state.panel === "piano" && state.pSub === "chords") return "piano";
   if(state.panel === "guitar" && state.gSub === "chords") return "guitar";
   if(state.panel === "guitar" && state.gSub === "triads") return "triads";
   return null;
 }
-let CH = [], NAMES = [], DEGS = [];
+let CH = [], CH_ALL = {}, NAMES = [], DEGS = [];
 function buildChords(){
   state.view = chordView();
   const steps = MODES[state.mode].steps, MAJ = MODES.major.steps;
@@ -426,35 +440,46 @@ function buildChords(){
     const q = perfect ? ({"-1":"d","0":"P","1":"A"})[d] : ({"-2":"d","-1":"m","0":"M","1":"A"})[d];
     return {f: accStr(d) + (i + 1), iv: i === 0 ? "R" : q + (i + 1), alt: d !== 0, semis: s};
   });
-  const useSev = state.seventh && state.view !== "triads";
-  CH = steps.map((_, i) => {
-    const idx = [0,2,4,6].map(k => (i+k) % 7);
-    const pcs = idx.map(j => (state.root + steps[j]) % 12);
-    const ints = pcs.map(p => (p - pcs[0] + 12) % 12);
-    const t = triQ(ints[1], ints[2]);
-    const q = useSev ? sevQ(t, ints[3]) : t;
-    const n = useSev ? 4 : 3;
-    const Q = QUAL[q];
-    return {
-      i, q, cls:Q.cls, root:pcs[0], pcs:pcs.slice(0,n), ints:ints.slice(0,n),
-      names:idx.slice(0,n).map(j => NAMES[j]),
-      sym:NAMES[i] + Q.sym,
-      numeral:(Q.up ? NUMS[i] : NUMS[i].toLowerCase()) + Q.suf
-    };
+  ["3","7","9","13"].forEach(sz => {
+    const useSev = sz !== "3", useNin = sz==="9"||sz==="13", useThir = sz==="13";
+    CH_ALL[sz] = steps.map((_, i) => {
+      const allIdx = [0,2,4,6,1,5].map(k => (i+k) % 7);
+      const allPcs = allIdx.map(j => (state.root + steps[j]) % 12);
+      const root_pc = allPcs[0];
+      let ints = allPcs.map(p => (p - root_pc + 12) % 12);
+      for(let k=1;k<ints.length;k++) while(ints[k]<=ints[k-1]) ints[k]+=12;
+      const t = triQ(ints[1], ints[2]);
+      let q = t;
+      if(useSev) q = sevQ(t, ints[3]);
+      if(useNin)  q = ninQ(q);
+      if(useThir) q = thirQ(q);
+      const n = useThir ? 6 : useNin ? 5 : useSev ? 4 : 3;
+      const Q = QUAL[q] || QUAL["maj"];
+      return {
+        i, q, cls:Q.cls, root:root_pc, pcs:allPcs.slice(0,n), ints:ints.slice(0,n),
+        names:allIdx.slice(0,n).map(j => NAMES[j]),
+        sym:NAMES[i] + Q.sym,
+        numeral:(Q.up ? NUMS[i] : NUMS[i].toLowerCase()) + Q.suf
+      };
+    });
   });
+  const dispSz = state.view === "triads" ? "3" : state.chordSize;
+  CH = CH_ALL[dispSz];
 }
 const nameOfPc = pc => { const k = MODES[state.mode].steps.findIndex(s => (state.root + s) % 12 === pc); return k >= 0 ? NAMES[k] : PC_LABEL[pc]; };
 
 /* ---------- Chord voicings ---------- */
 function minFret(f){ const x = f.filter(v => v !== null && v > 0); return x.length ? Math.min(...x) : 0; }
 function guitarVoicings(ch){
+  const baseQ = {"9":"7","maj9":"maj7","m9":"m7","m9b5":"m7b5","mMaj9":"mMaj7","maj9s5":"maj7s5",
+                 "13":"7","maj13":"maj7","m13":"m7"}[ch.q] || ch.q;
   const out = [], seen = new Set();
   const push = (frets, label) => { const k = frets.join(","); if(!seen.has(k)){ seen.add(k); out.push({frets, label}); } };
-  const open = OPEN[ch.root + ":" + ch.q];
+  const open = OPEN[ch.root + ":" + baseQ];
   if(open) push(open, "Open chord");
   const shapes = [];
   for(const s of ["E","A"]){
-    const t = SHAPES[ch.q][s];
+    const t = (SHAPES[baseQ] || {})[s]; if(!t) continue;
     let r = (ch.root - (s==="E"?4:9) + 12) % 12;
     if(r === 0 && t.some(v => v !== null && v < 0)) r = 12;
     shapes.push({frets:t.map(v => v===null ? null : v + r), label: s==="E" ? "Root on low E string" : "Root on A string"});
@@ -696,9 +721,9 @@ function woodblock(t, accent){
   go.gain.setValueAtTime(accent ? 0.45 : 0.3, t); go.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
   o.connect(go); go.connect(master); o.start(t); o.stop(t + 0.08);
 }
-function playDegree(i, t, vel){
+function playDegree(i, t, vel, size){
   const c = ac(); if(t == null) t = c.currentTime + 0.02; vel = vel || 1;
-  const ch = CH[i];
+  const ch = (size ? CH_ALL[size] : CH)[i];
   if(state.view === "guitar" || state.view === "triads"){
     const cv = currentVoicing(i); if(!cv) return;
     const finger = state.gMode === "finger";
@@ -734,25 +759,27 @@ function jamTick(){
   while(jam.next < c.currentTime + 0.12){
     const prog = state.prog;
     if(!prog.length){ stopJam(); return; }
-    const k = jam.step % prog.length, deg = prog[k], b = jam.beat;
+    const k = jam.step % prog.length, e = normProg(prog[k]), deg = e.d, sz = e.s, b = jam.beat;
     if(b === 0){
-      playDegree(deg, jam.next, 1);
+      playDegree(deg, jam.next, 1, sz);
       const when = jam.next;
-      setTimeout(() => { if(jam.on) setNow(k, deg); }, Math.max(0, (when - c.currentTime) * 1000));
+      setTimeout(() => { if(jam.on) setNow(k, deg, sz); }, Math.max(0, (when - c.currentTime) * 1000));
     } else if(state.beats >= 4 && b === state.beats / 2){
-      playDegree(deg, jam.next, 0.55);
+      playDegree(deg, jam.next, 0.55, sz);
     }
     jam.next += 60 / state.bpm;
     jam.beat++;
     if(jam.beat >= state.beats){ jam.beat = 0; jam.step++; }
   }
 }
-function setNow(k, deg){
+function setNow(k, deg, sz){
   jam.nowK = k; jam.nowDeg = deg;
   const p = state.prog;
-  $("#nowSym").textContent = CH[deg] ? CH[deg].sym : "–";
-  const nx = CH[p[(k+1) % p.length]];
-  $("#nowNext").textContent = nx ? "next " + nx.sym : "";
+  const chNow = (CH_ALL[sz]||CH)[deg];
+  $("#nowSym").textContent = chNow ? chNow.sym : "–";
+  const ne = normProg(p[(k+1) % p.length]);
+  const nxch = (CH_ALL[ne.s]||CH)[ne.d];
+  $("#nowNext").textContent = nxch ? "next " + nxch.sym : "";
   markNow();
 }
 function markNow(){
@@ -919,8 +946,10 @@ const labelPills = () => `<div class="pills" role="group" aria-label="Labels">
   <button class="pill" data-labels="deg" ${pressed(state.labels==="deg")}>Degrees</button>
   <button class="pill" data-labels="note" ${pressed(state.labels==="note")}>Note names</button></div>`;
 const sizePills = () => `<div class="pills" role="group" aria-label="Chord size">
-  <button class="pill" data-size="3" ${pressed(!state.seventh)}>Three notes</button>
-  <button class="pill" data-size="7" ${pressed(state.seventh)}>With 7ths</button></div>`;
+  <button class="pill" data-size="3"  ${pressed(state.chordSize==="3")}>Triads</button>
+  <button class="pill" data-size="7"  ${pressed(state.chordSize==="7")}>7ths</button>
+  <button class="pill" data-size="9"  ${pressed(state.chordSize==="9")}>9ths</button>
+  <button class="pill" data-size="13" ${pressed(state.chordSize==="13")}>13ths</button></div>`;
 const chordHint = `<p class="hint">Tap a chord to hear it, + to add it to your progression. Amber is major, teal is minor, rose is diminished.</p>`;
 const strumPills = () => `<div class="pills" role="group" aria-label="Playing style">
   <button class="pill" data-gmode="strum" ${pressed(state.gMode!=="finger")}>Strum</button>
@@ -1043,13 +1072,13 @@ function renderJam(){
   if(!state.prog.length){
     p.innerHTML = `<span class="empty">Tap + on any chord to start a progression, or load one from the list.</span>`;
   } else {
-    p.innerHTML = state.prog.map((d, k) => {
-      const ch = CH[d];
+    p.innerHTML = state.prog.map((e, k) => {
+      const {d, s} = normProg(e), ch = (CH_ALL[s]||CH)[d];
       return `<span class="chip q-${ch.cls}${jam.nowK===k?" now":""}" data-k="${k}"><button class="c-play" data-chip="${k}" aria-label="Play ${ch.sym}">${ch.sym}</button><button class="c-x" data-remove="${k}" aria-label="Remove ${ch.sym}">×</button></span>`;
     }).join("");
   }
   $("#preset").innerHTML = `<option value="">Load a progression…</option>` + PRESETS[state.mode].map(([degs, name], k) =>
-    `<option value="${k}">${degs.map(d => CH[d].numeral).join("–")}  ${name}</option>`).join("");
+    `<option value="${k}">${degs.map(d => CH_ALL["3"][d].numeral).join("–")}  ${name}</option>`).join("");
   $("#bpm").value = state.bpm; $("#bpmVal").textContent = state.bpm;
   $("#beats").value = String(state.beats);
   if(jam.on && jam.nowDeg >= 0 && CH[jam.nowDeg]) $("#nowSym").textContent = CH[jam.nowDeg].sym;
@@ -1077,7 +1106,7 @@ $("#panel").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b || b.disabled) return;
   const d = b.dataset;
   if(d.play != null){ playDegree(+d.play); return; }
-  if(d.add != null){ if(state.prog.length < 12){ state.prog.push(+d.add); playDegree(+d.add); renderJam(); save(); } return; }
+  if(d.add != null){ if(state.prog.length < 12){ const entry={d:+d.add,s:state.chordSize}; state.prog.push(entry); playDegree(entry.d,null,null,entry.s); renderJam(); save(); } return; }
   if(d.vnext != null || d.vprev != null){
     const i = +(d.vnext ?? d.vprev), dir = d.vnext != null ? "vnext" : "vprev";
     state.voicing[i] = (state.voicing[i] || 0) + (dir === "vnext" ? 1 : -1);
@@ -1095,7 +1124,7 @@ $("#panel").addEventListener("click", e => {
   if(d.tr){ stopSeq(); const r = state.root + +d.tr; if(r > 11) state.scaleOct = Math.min(5, state.scaleOct + 1); if(r < 0) state.scaleOct = Math.max(2, state.scaleOct - 1); state.root = (r + 12) % 12; }
   else if(d.gsub){ stopSeq(); state.gSub = d.gsub; state.voicing = {}; }
   else if(d.psub){ stopSeq(); state.pSub = d.psub; }
-  else if(d.size){ state.seventh = d.size === "7"; state.voicing = {}; }
+  else if(d.size){ state.chordSize = d.size; state.voicing = {}; }
   else if(d.gmode){ state.gMode = d.gmode; }
   else if(d.strings){ state.strings = d.strings; state.voicing = {}; }
   else if(d.labels){ state.labels = d.labels; }
@@ -1118,7 +1147,7 @@ $("#panel").addEventListener("change", e => {
 });
 $("#prog").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
-  if(b.dataset.chip != null){ playDegree(state.prog[+b.dataset.chip]); }
+  if(b.dataset.chip != null){ const e=normProg(state.prog[+b.dataset.chip]); playDegree(e.d,null,null,e.s); }
   else if(b.dataset.remove != null){
     state.prog.splice(+b.dataset.remove, 1);
     if(!state.prog.length && jam.on) stopJam();
@@ -1127,7 +1156,7 @@ $("#prog").addEventListener("click", e => {
 });
 $("#preset").addEventListener("change", e => {
   const v = e.target.value; if(v === "") return;
-  state.prog = PRESETS[state.mode][+v][0].slice(); jam.step = 0; jam.nowK = -1;
+  state.prog = PRESETS[state.mode][+v][0].map(d => ({d, s:state.chordSize})); jam.step = 0; jam.nowK = -1;
   renderJam(); save();
 });
 $("#playBtn").addEventListener("click", () => jam.on ? stopJam() : startJam());
