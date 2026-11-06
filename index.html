@@ -639,7 +639,7 @@ function fretboardSVG(shape){
 
 /* ---------- Audio ---------- */
 let ctx = null, master = null, noiseBuf = null;
-const ksCache = new Map();
+const ksCache = new Map(), tanpuraCache = new Map();
 function ac(){
   if(!ctx){
     ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -678,6 +678,19 @@ function guitarNote(m, t, vel){
   const c = ac(), src = c.createBufferSource(), g = c.createGain();
   src.buffer = ksBuffer(m); g.gain.value = vel;
   src.connect(g); g.connect(master); src.start(t);
+}
+function tanpuraBuffer(m){
+  if(tanpuraCache.has(m)) return tanpuraCache.get(m);
+  const c = ac(), sr = c.sampleRate, N = Math.max(2, Math.round(sr / hz(m)));
+  const len = Math.floor(sr * 8), buf = c.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  for(let n=0;n<N;n++){ const t=n/N; d[n] = t<0.5 ? 4*t-1 : 3-4*t; } // triangle pluck
+  for(let n=N;n<len;n++) d[n] = 0.9992 * 0.5 * (d[n-N] + (n-N-1>=0 ? d[n-N-1] : 0));
+  tanpuraCache.set(m, buf); return buf;
+}
+function tanpuraNote(m, t){
+  const c = ac(), src = c.createBufferSource(), g = c.createGain(), lp = c.createBiquadFilter();
+  src.buffer = tanpuraBuffer(m); lp.type = "lowpass"; lp.frequency.value = 1800; g.gain.value = 0.28;
+  src.connect(lp); lp.connect(g); g.connect(master); src.start(t);
 }
 function woodblock(t, accent){
   const c = ac();
@@ -878,6 +891,34 @@ function metroUI(){
 }
 function setMetroBpm(v){ state.metroBpm = Math.max(40, Math.min(220, v)); metroUI(); save(); }
 
+/* ---------- Tanpura ---------- */
+const tpura = {on:false, timer:null, next:0, step:0};
+function startTanpura(){
+  const c = ac();
+  tpura.on = true; tpura.next = c.currentTime + 0.05; tpura.step = 0;
+  tpura.timer = setInterval(tanpuraTick, 25); tanpuraTick();
+  updateTanpuraBtn();
+}
+function stopTanpura(){
+  if(!tpura.on) return;
+  tpura.on = false; clearInterval(tpura.timer); tpura.timer = null;
+  updateTanpuraBtn();
+}
+function tanpuraTick(){
+  const c = ac();
+  const Sa = 12 * state.scaleOct + state.root; // low Sa, one octave below scale start
+  const pattern = [Sa+7, Sa+12, Sa+12, Sa];    // Pa, Sa(hi), Sa(hi), Sa(lo)
+  while(tpura.on && tpura.next < c.currentTime + 0.12){
+    tanpuraNote(pattern[tpura.step % 4], tpura.next);
+    tpura.next += 2.0; tpura.step++;
+  }
+}
+function updateTanpuraBtn(){
+  const btn = $("[data-tanpura]"); if(!btn) return;
+  btn.textContent = tpura.on ? "Stop tanpura" : "Play tanpura";
+  btn.setAttribute("aria-pressed", tpura.on);
+}
+
 /* ---------- Rendering ---------- */
 function renderKey(){
   const w = $("#wheel");
@@ -941,6 +982,11 @@ function scalePanel(){
     <dt>Steps</dt><dd>${pattern.join(" ")}</dd>
     <dt>Versus major</dt><dd>${alts.length ? alts.join(" ") : "Same as major"}</dd>
   </dl>
+  <div class="player">
+    <h3>Tanpura</h3>
+    <button class="btn primary" data-tanpura aria-pressed="false">Play tanpura</button>
+    <p class="hint" style="margin:0">Continuous Sa–Pa–Sa–Sa drone in ${NAMES[0]}</p>
+  </div>
   <div class="player">
     <h3>Sing along</h3>
     <button class="btn primary" data-seq="vocal" data-label="Play scale">Play scale</button>
@@ -1029,6 +1075,7 @@ function renderPanel(){
     if(shp) board.scrollLeft = Math.max(0, 30 + 34 + (shp.lo - 1.5) * 46 - 20);
   }
   updatePlayButtons();
+  updateTanpuraBtn();
 }
 function renderJam(){
   const show = !!state.view;
@@ -1063,8 +1110,8 @@ $("#wheel").addEventListener("click", e => {
 });
 document.querySelector(".controls").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
-  if(b.dataset.mode){ stopSeq(); state.mode = b.dataset.mode; state.voicing = {}; }
-  else if(b.dataset.panel){ stopSeq(); state.panel = b.dataset.panel; state.voicing = {}; render(); $("#panel").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"}); return; }
+  if(b.dataset.mode){ stopSeq(); stopTanpura(); state.mode = b.dataset.mode; state.voicing = {}; }
+  else if(b.dataset.panel){ stopSeq(); stopTanpura(); state.panel = b.dataset.panel; state.voicing = {}; render(); $("#panel").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"}); return; }
   else return;
   render();
 });
@@ -1087,6 +1134,7 @@ $("#panel").addEventListener("click", e => {
     if(d.seq === "piano") startSeq("piano", pianoScaleGen(), "piano");
     return;
   }
+  if(d.tanpura != null){ tpura.on ? stopTanpura() : startTanpura(); return; }
   if(d.tr){ stopSeq(); const r = state.root + +d.tr; if(r > 11) state.scaleOct = Math.min(5, state.scaleOct + 1); if(r < 0) state.scaleOct = Math.max(2, state.scaleOct - 1); state.root = (r + 12) % 12; }
   else if(d.gsub){ stopSeq(); state.gSub = d.gsub; state.voicing = {}; }
   else if(d.psub){ stopSeq(); state.pSub = d.psub; }
