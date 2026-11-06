@@ -197,6 +197,9 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .metro-pop input[type=range]{width:100%;accent-color:var(--wood);margin:0 0 12px}
 .metro-pop .btn.primary{width:100%;background:var(--wood);border-color:var(--wood);color:var(--wood-ink)}
 
+.brand-row{display:flex;align-items:center;gap:10px}
+.theme-btn{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:transparent;display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none;padding:0}
+.theme-btn:hover{color:var(--ink);border-color:var(--muted)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}.metro-btn.running .pend{animation:none}}
 </style>
@@ -204,7 +207,10 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 <body>
 <div class="wrap">
   <header class="top">
-    <h1 class="brand">Innerjam</h1>
+    <div class="brand-row">
+      <h1 class="brand">Innerjam</h1>
+      <button class="theme-btn" id="themeBtn" aria-label="Switch to dark mode"></button>
+    </div>
     <p class="lede">Pick a root note and a scale, then choose what you want to work on.</p>
   </header>
 
@@ -1134,6 +1140,20 @@ document.addEventListener("keydown", e => {
   if(n >= 1 && n <= 7 && !e.metaKey && !e.ctrlKey) playDegree(n - 1);
 });
 window.addEventListener("resize", dock);
+
+/* ---------- Theme toggle ---------- */
+const MOON = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M14 10.5A6 6 0 0 1 5.5 2a6.5 6.5 0 1 0 8.5 8.5z"/></svg>`;
+const SUN  = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.8"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="2.93" y1="2.93" x2="4.34" y2="4.34"/><line x1="11.66" y1="11.66" x2="13.07" y2="13.07"/><line x1="2.93" y1="13.07" x2="4.34" y2="11.66"/><line x1="11.66" y1="4.34" x2="13.07" y2="2.93"/></svg>`;
+function isDark(){ const t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
+function applyTheme(dark){
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  try{ localStorage.setItem("innerjam:theme", dark ? "dark" : "light"); }catch(e){}
+  const btn = $("#themeBtn");
+  btn.innerHTML = dark ? SUN : MOON;
+  btn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+}
+try{ applyTheme(localStorage.getItem("innerjam:theme") === "dark" || (!localStorage.getItem("innerjam:theme") && matchMedia("(prefers-color-scheme: dark)").matches)); }catch(e){ applyTheme(false); }
+$("#themeBtn").addEventListener("click", () => applyTheme(!isDark()));
 
 render();
 metroUI();
