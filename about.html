@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About – Innerjam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F6F1EA; --surface:#FEFCF8; --sunk:#EDE5D6; --ink:#2A1A0D; --muted:#7C6249;
+  --line:#D4C5AD; --accent:#7B3F20; --accent-ink:#FFFFFF;
+  --serif:"Young Serif", Georgia, "Times New Roman", serif;
+  --sans:"Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#17162B; --surface:#221F3B; --sunk:#1C1A33; --ink:#EEEBFA; --muted:#A9A5CA;
+    --line:#38345C; --accent:#8F9CFF; --accent-ink:#13122A;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#17162B; --surface:#221F3B; --sunk:#1C1A33; --ink:#EEEBFA; --muted:#A9A5CA;
+  --line:#38345C; --accent:#8F9CFF; --accent-ink:#13122A;
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.wrap{max-width:680px;margin:0 auto;padding:32px 18px 80px}
+
+.site-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:48px}
+.brand{font-family:var(--serif);font-size:1.4rem;color:var(--ink);text-decoration:none}
+.brand:hover{text-decoration:none;color:var(--accent)}
+.back{font-size:.9rem;color:var(--muted);display:flex;align-items:center;gap:4px}
+.back:hover{color:var(--ink)}
+
+h1{font-family:var(--serif);font-weight:400;font-size:2rem;margin:0 0 12px}
+.sub{color:var(--muted);font-size:1rem;margin:0 0 48px}
+
+.placeholder{border:1.5px dashed var(--line);border-radius:14px;padding:40px 24px;text-align:center;color:var(--muted);font-size:.95rem}
+
+.site-footer{margin-top:64px;padding:20px 0;border-top:1px solid var(--line);display:flex;align-items:center;gap:20px;font-size:.85rem}
+.site-footer a{color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:6px}
+.site-footer a:hover{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site-header">
+    <a href="index.html" class="brand">Innerjam</a>
+    <a href="index.html" class="back">← Back</a>
+  </header>
+
+  <main>
+    <h1>About</h1>
+    <p class="sub">More coming soon.</p>
+
+    <div class="placeholder">
+      This page is a work in progress.
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <a href="https://github.com/rishabhnambiar/innerjam" target="_blank" rel="noopener" aria-label="View source on GitHub">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
+    </a>
+  </footer>
+</div>
+
+<script>
+(function(){
+  try{
+    const t = localStorage.getItem("innerjam:theme");
+    if(t) document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
