@@ -61,8 +61,8 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .wheel svg.ring{position:absolute;inset:0;width:100%;height:100%}
 .wheel .note{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;
   border:1.5px solid var(--line);background:var(--surface);font-weight:600;font-size:1rem;
-  transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--wsz) * -0.405)) rotate(calc(var(--a) * -1));
-  transition:background .15s,color .15s,border-color .15s}
+  transform:translate(-50%,-50%) rotate(calc(var(--a) + var(--wheel-spin,0deg))) translateY(calc(var(--wsz) * -0.405)) rotate(calc(-1 * var(--a) + -1 * var(--wheel-spin,0deg)));
+  transition:background .15s,color .15s,border-color .15s,transform .75s cubic-bezier(.34,1.4,.64,1)}
 .wheel .note:hover{border-color:var(--accent)}
 .wheel .note[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .wheel .note.in-scale:not([aria-pressed="true"]){border-color:var(--muted)}
@@ -203,8 +203,10 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .site-footer a:hover{color:var(--ink)}
 .theme-btn{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:transparent;display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none;padding:0}
 .theme-btn:hover{color:var(--ink);border-color:var(--muted)}
+@keyframes btn-spin{to{transform:rotate(360deg)}}
+#spinBtn.spinning svg{animation:btn-spin .5s cubic-bezier(.4,0,.2,1)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@media (prefers-reduced-motion: reduce){*{transition:none!important}.metro-btn.running .pend{animation:none}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}.metro-btn.running .pend{animation:none}#spinBtn.spinning svg{animation:none}}
 </style>
 </head>
 <body>
@@ -213,6 +215,9 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
     <div class="brand-row">
       <h1 class="brand">Innerjam</h1>
       <button class="theme-btn" id="themeBtn" aria-label="Switch to dark mode"></button>
+      <button class="theme-btn" id="spinBtn" aria-label="Spin the wheel">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 1 1 10 2.8"/><polyline points="10 1 10 3.5 12.5 3.5"/></svg>
+      </button>
     </div>
     <p class="lede">Pick a root note and a scale, then choose what you want to work on.</p>
   </header>
@@ -1186,6 +1191,16 @@ document.addEventListener("keydown", e => {
   if(n >= 1 && n <= 7 && !e.metaKey && !e.ctrlKey) playDegree(n - 1);
 });
 window.addEventListener("resize", dock);
+
+/* ---------- Wheel spin ---------- */
+let wheelSpin = 0;
+$("#spinBtn").addEventListener("click", () => {
+  wheelSpin += (1 + Math.floor(Math.random() * 11)) * 30;
+  document.documentElement.style.setProperty("--wheel-spin", wheelSpin + "deg");
+  const btn = $("#spinBtn");
+  btn.classList.add("spinning");
+  setTimeout(() => btn.classList.remove("spinning"), 600);
+});
 
 /* ---------- Theme toggle ---------- */
 const MOON = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M14 10.5A6 6 0 0 1 5.5 2a6.5 6.5 0 1 0 8.5 8.5z"/></svg>`;
