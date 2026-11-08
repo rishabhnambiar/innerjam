@@ -192,8 +192,10 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .metro-pop{position:fixed;right:16px;bottom:calc(var(--dock) + 84px + env(safe-area-inset-bottom,0px));z-index:20;
   width:min(280px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;
   box-shadow:0 12px 30px rgba(20,16,40,.22)}
-.metro-pop h2{font-family:var(--serif);font-weight:400;font-size:1.15rem;margin:0 0 2px}
-.metro-pop .sig{color:var(--muted);font-size:.85rem;margin:0 0 12px}
+.metro-pop h2{font-family:var(--serif);font-weight:400;font-size:1.15rem;margin:0 0 10px}
+.metro-sounds{display:flex;gap:6px;margin-bottom:12px}
+.metro-sound-btn{flex:1;border:1.5px solid var(--line);background:var(--sunk);border-radius:8px;padding:6px 0;font-size:.85rem;font-weight:600;color:var(--muted)}
+.metro-sound-btn[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .beats{display:flex;gap:8px;margin-bottom:12px}
 .beats span{flex:1;height:10px;border-radius:5px;background:var(--sunk)}
 .beats span.on{background:var(--wood)}
@@ -300,7 +302,10 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 </button>
 <div class="metro-pop" id="metroPop" role="dialog" aria-label="Metronome" hidden>
   <h2>Metronome</h2>
-  <p class="sig">4/4, woodblock click</p>
+  <div class="metro-sounds" role="group" aria-label="Sound">
+    <button class="metro-sound-btn" data-metro-sound="click" aria-pressed="true">Click</button>
+    <button class="metro-sound-btn" data-metro-sound="beat" aria-pressed="false">Beat</button>
+  </div>
   <div class="beats" id="metroBeats"><span></span><span></span><span></span><span></span></div>
   <div class="tempo-row">
     <button id="metroDown" aria-label="Slower">−</button>
@@ -395,7 +400,7 @@ const state = {
   root:0, mode:"major", panel:null, gSub:"chords", pSub:"chords",
   chordSize:"3", gMode:"strum", pMode:"chord", diagrams:true, strings:"top", bpm:90, beats:4, prog:null,
   scalePattern:"updown", scaleOct:3, scaleAfter:"up", scaleCue:true, scaleBpm:90,
-  labels:"deg", shapeIdx:0, metroBpm:120,
+  labels:"deg", shapeIdx:0, metroBpm:120, metroSound:"click",
   voicing:{}, view:null
 };
 try{
@@ -682,7 +687,7 @@ function fretboardSVG(shape){
 }
 
 /* ---------- Audio ---------- */
-let ctx = null, master = null, noiseBuf = null;
+let ctx = null, master = null, noiseBuf = null, longNoise = null;
 const ksCache = new Map();
 function ac(){
   if(!ctx){
@@ -739,6 +744,30 @@ function woodblock(t, accent){
   o.type = "sine"; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f*0.85, t + 0.06);
   go.gain.setValueAtTime(accent ? 0.45 : 0.3, t); go.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
   o.connect(go); go.connect(master); o.start(t); o.stop(t + 0.08);
+}
+function kickDrum(t){
+  const c = ac();
+  const g = c.createGain(), o = c.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.07);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1.0, t + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.36);
+}
+function snare(t){
+  const c = ac();
+  if(!longNoise){
+    longNoise = c.createBuffer(1, Math.floor(c.sampleRate * 0.25), c.sampleRate);
+    const d = longNoise.getChannelData(0); for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  }
+  const n = c.createBufferSource(), hp = c.createBiquadFilter(), gn = c.createGain();
+  n.buffer = longNoise; hp.type = "highpass"; hp.frequency.value = 2000;
+  gn.gain.setValueAtTime(0.55, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  n.connect(hp); hp.connect(gn); gn.connect(master); n.start(t); n.stop(t + 0.19);
+  const o = c.createOscillator(), go = c.createGain();
+  o.type = "triangle"; o.frequency.value = 185;
+  go.gain.setValueAtTime(0.3, t); go.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+  o.connect(go); go.connect(master); o.start(t); o.stop(t + 0.07);
 }
 function playDegree(i, t, vel, size){
   const c = ac(); if(t == null) t = c.currentTime + 0.02; vel = vel || 1;
@@ -897,10 +926,17 @@ function updatePlayButtons(){
 /* ---------- Metronome ---------- */
 const metro = {on:false, timer:null, next:0, beat:0};
 function metroStart(){
-  const c = ac();
-  metro.on = true; metro.next = c.currentTime + 0.06; metro.beat = 0;
+  if(jam.on){
+    state.metroBpm = state.bpm;
+    metro.next = jam.next;
+    metro.beat = jam.beat % 4;
+  } else {
+    metro.next = ac().currentTime + 0.06;
+    metro.beat = 0;
+  }
+  metro.on = true;
   metro.timer = setInterval(metroTick, 25); metroTick();
-  metroUI();
+  metroUI(); save();
 }
 function metroStop(){
   metro.on = false; clearInterval(metro.timer);
@@ -911,7 +947,11 @@ function metroTick(){
   const c = ac();
   while(metro.next < c.currentTime + 0.12){
     const b = metro.beat, t = metro.next;
-    woodblock(t, b === 0);
+    if(state.metroSound === "beat"){
+      if(b === 0 || b === 2) kickDrum(t); else snare(t);
+    } else {
+      woodblock(t, b === 0);
+    }
     setTimeout(() => {
       if(!metro.on) return;
       $$("#metroBeats span").forEach((s, i) => s.classList.toggle("on", i === b));
@@ -929,6 +969,7 @@ function metroUI(){
   $("#metroRange").value = state.metroBpm;
   $("#metroToggle").textContent = metro.on ? "Stop" : "Start";
   btn.setAttribute("aria-label", metro.on ? `Metronome, playing at ${state.metroBpm} BPM` : "Metronome");
+  $$(".metro-sound-btn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.metroSound === state.metroSound)));
 }
 function setMetroBpm(v){ state.metroBpm = Math.max(40, Math.min(220, v)); metroUI(); save(); }
 
@@ -1256,7 +1297,7 @@ $("#exportBtn").addEventListener("click", () => {
   URL.revokeObjectURL(a.href);
 });
 $("#clearBtn").addEventListener("click", () => { state.prog = []; if(jam.on) stopJam(); renderJam(); save(); });
-$("#bpm").addEventListener("input", e => { state.bpm = +e.target.value; $("#bpmVal").textContent = state.bpm; save(); });
+$("#bpm").addEventListener("input", e => { state.bpm = +e.target.value; $("#bpmVal").textContent = state.bpm; if(metro.on){ state.metroBpm = state.bpm; metroUI(); } save(); });
 $("#beats").addEventListener("change", e => { state.beats = +e.target.value; jam.beat = 0; save(); });
 
 /* metronome */
@@ -1269,6 +1310,7 @@ $("#metroToggle").addEventListener("click", () => metro.on ? metroStop() : metro
 $("#metroDown").addEventListener("click", () => setMetroBpm(state.metroBpm - 1));
 $("#metroUp").addEventListener("click", () => setMetroBpm(state.metroBpm + 1));
 $("#metroRange").addEventListener("input", e => setMetroBpm(+e.target.value));
+$$(".metro-sound-btn").forEach(b => b.addEventListener("click", () => { state.metroSound = b.dataset.metroSound; metroUI(); save(); }));
 document.addEventListener("click", e => {
   if($("#metroPop").hidden) return;
   if(!e.target.closest("#metroPop") && !e.target.closest("#metroBtn")) setMetroOpen(false);
