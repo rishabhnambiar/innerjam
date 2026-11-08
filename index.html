@@ -318,6 +318,7 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
   <div class="metro-sounds" role="group" aria-label="Sound">
     <button class="metro-sound-btn" data-metro-sound="click" aria-pressed="true">Click</button>
     <button class="metro-sound-btn" data-metro-sound="beat" aria-pressed="false">Beat</button>
+    <button class="metro-sound-btn" data-metro-sound="clap" aria-pressed="false">Clap</button>
   </div>
   <div class="beats" id="metroBeats"><span></span><span></span><span></span><span></span></div>
   <div class="tempo-row">
@@ -784,6 +785,24 @@ function snare(t){
   go.gain.setValueAtTime(0.3, t); go.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
   o.connect(go); go.connect(master); o.start(t); o.stop(t + 0.07);
 }
+function clap(t){
+  const c = ac();
+  if(!longNoise){
+    longNoise = c.createBuffer(1, Math.floor(c.sampleRate * 0.25), c.sampleRate);
+    const d = longNoise.getChannelData(0); for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  }
+  // Three staggered layers — simulates multiple hands slapping together
+  [0, 0.009, 0.018].forEach((delay, i) => {
+    const n = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain();
+    n.buffer = longNoise;
+    bp.type = "bandpass"; bp.frequency.value = 1100 + i * 400; bp.Q.value = 0.6;
+    g.gain.setValueAtTime(0, t + delay);
+    g.gain.linearRampToValueAtTime(0.45 - i * 0.08, t + delay + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.055);
+    n.connect(bp); bp.connect(g); g.connect(master);
+    n.start(t + delay); n.stop(t + delay + 0.06);
+  });
+}
 function playDegree(i, t, vel, size){
   const c = ac(); if(t == null) t = c.currentTime + 0.02; vel = vel || 1;
   const ch = (size ? CH_ALL[size] : CH)[i];
@@ -973,6 +992,8 @@ function metroTick(){
     const b = metro.beat, t = metro.next;
     if(state.metroSound === "beat"){
       if(b === 0 || b === 2) kickDrum(t); else snare(t);
+    } else if(state.metroSound === "clap"){
+      if(b === 0 || b === 2) kickDrum(t); else clap(t);
     } else {
       woodblock(t, b === 0);
     }
