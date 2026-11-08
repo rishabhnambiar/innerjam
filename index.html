@@ -188,7 +188,8 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .sec-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:flex-start;min-height:54px}
 .sec-del{border:0;background:transparent;color:var(--muted);font-size:.85rem;padding:6px 4px;opacity:0;transition:opacity .15s;flex:none;align-self:flex-start;padding-top:10px}
 .sec-row:hover>.sec-del{opacity:1}
-.sec-add{border:1.5px dashed var(--line);background:transparent;border-radius:8px;padding:5px 12px;font-size:.82rem;color:var(--muted);font-weight:600;margin-top:6px;display:inline-flex;align-items:center;align-self:flex-start}
+.sec-add{font-size:.9rem;opacity:.5}
+.sec-add:hover{opacity:1}
 .jam-controls{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
 
 /* Wooden metronome */
@@ -1195,7 +1196,7 @@ function renderJam(){
       return `<span class="chip q-${ch.cls}${isPlaying&&jam.nowK===k?" now":""}" data-sec="${si}" data-k="${k}"><button class="c-play" data-chip="${k}" data-sec="${si}" aria-label="Play ${ch.sym}"><span class="chip-num">${ch.numeral}</span><span class="chip-sym">${ch.sym}</span></button><span class="chip-bot"><button class="c-dur" data-dur="${k}" data-sec="${si}" aria-label="Change duration">${durLabel(durBeats(e))}</button><button class="c-x" data-remove="${k}" data-sec="${si}" aria-label="Remove ${ch.sym}">×</button></span></span>`;
     }).join("") : `<span class="empty">Empty — tap + to add chords</span>`;
     return `<div class="sec-row${isPlaying?" playing":""}${isEditing?" editing":""}" data-sec="${si}"><button class="sec-lbl" data-focus-sec="${si}" aria-label="Add chords to section ${label}">${label}</button><div class="sec-chips">${chips}</div>${state.sections.length>1?`<button class="sec-del" data-del-sec="${si}" aria-label="Remove section ${label}">×</button>`:""}</div>`;
-  }).join("") + `<button class="sec-add" data-sec-add aria-label="Add a new section">+ Section</button>`;
+  }).join("") + `<div class="sec-row"><button class="sec-lbl sec-add" data-sec-add aria-label="Add a new section">+</button></div>`;
   $("#preset").innerHTML = `<option value="">Load a progression…</option>` + PRESETS[state.mode].map(([degs, name], k) =>
     `<option value="${k}">${degs.map(d => CH_ALL["3"][d].numeral).join("–")}  ${name}</option>`).join("");
   $("#bpm").value = state.bpm; $("#bpmVal").textContent = state.bpm;
