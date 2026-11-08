@@ -161,27 +161,32 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 /* Jam bar */
 .jam{position:sticky;bottom:0;z-index:5;background:var(--surface);border-top:1px solid var(--line);
   padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px))}
-.jam-inner{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:auto 1fr;gap:10px 18px;align-items:center}
+.jam-inner{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:110px 1fr;gap:10px 18px;align-items:start}
 @media (max-width:760px){.jam-inner{grid-template-columns:1fr}}
-.nowbox{display:flex;align-items:baseline;gap:10px;min-width:150px}
-.now-sym{font-family:var(--serif);font-size:2.2rem;line-height:1}
-.now-next{color:var(--muted);font-size:.85rem}
-.prog{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:40px}
-.chip{display:inline-flex;align-items:center;border:1.5px solid var(--line);border-radius:999px;background:var(--bg);overflow:hidden}
-.chip .c-play{border:0;background:transparent;padding:6px 4px 6px 12px;font-weight:600;display:flex;align-items:center;gap:6px}
-.chip .c-play::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--q)}
-.chip .c-dur{border:0;border-left:1px solid var(--line);background:transparent;padding:0 7px;font-size:.72rem;font-weight:700;color:var(--muted);min-width:1.8em;text-align:center;font-family:var(--serif);align-self:stretch;display:flex;align-items:center;justify-content:center}
-.chip .c-x{border:0;background:transparent;padding:6px 10px 6px 6px;color:var(--muted);font-size:1rem;line-height:1}
-.chip.now{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
-.chip.now .c-x,.chip.now .c-dur{color:var(--accent-ink)}
-.chip.now .c-dur{border-color:var(--accent-ink)}
+.nowbox{display:flex;flex-direction:column;gap:3px;padding-top:4px}
+.now-sym{font-family:var(--serif);font-size:2rem;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now-next{color:var(--muted);font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{display:flex;flex-direction:column;gap:4px;min-height:54px}
+/* Fixed-width chord tiles — same size regardless of symbol length, no reflow */
+.chip{display:inline-flex;flex-direction:column;width:60px;flex:none;border:1.5px solid var(--line);border-top:3px solid var(--q);border-radius:8px;background:var(--surface);overflow:hidden;transition:border-color .12s,box-shadow .12s}
+.chip .c-play{border:0;background:transparent;padding:5px 4px 3px;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
+.chip-num{font-family:var(--serif);font-size:.65rem;color:var(--q);line-height:1}
+.chip-sym{font-family:var(--serif);font-size:.88rem;line-height:1.2;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px}
+.chip-bot{display:flex;width:100%;border-top:1px solid var(--line)}
+.chip .c-dur{flex:1;border:0;border-right:1px solid var(--line);background:transparent;padding:3px 0;font-size:.65rem;font-weight:700;color:var(--muted);text-align:center;font-family:var(--serif)}
+.chip .c-x{border:0;background:transparent;padding:3px 8px;color:var(--muted);font-size:.8rem;line-height:1}
+/* Now state: ring only — zero box-model change */
+.chip.now{border-color:var(--accent);border-top-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+.chip.now .chip-num,.chip.now .chip-sym{color:var(--accent)}
+.chip.now .c-dur,.chip.now .c-x{color:var(--accent)}
+.chip.now .chip-bot,.chip.now .c-dur{border-color:var(--accent)}
 .empty{color:var(--muted);font-size:.9rem}
 .sec-row{display:flex;align-items:flex-start;gap:6px;width:100%;padding:2px 0}
-.sec-lbl{border:0;background:transparent;font-size:.75rem;font-weight:700;color:var(--muted);padding:8px 4px 8px 0;min-width:16px;cursor:pointer;font-family:var(--serif);line-height:1;flex:none}
+.sec-lbl{border:0;background:transparent;font-size:.72rem;font-weight:700;color:var(--muted);padding:12px 4px 4px 0;min-width:16px;cursor:pointer;font-family:var(--serif);line-height:1;flex:none}
 .sec-row.editing>.sec-lbl{color:var(--ink)}
 .sec-row.playing>.sec-lbl{color:var(--accent)}
-.sec-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:center;min-height:36px}
-.sec-del{border:0;background:transparent;color:var(--muted);font-size:.85rem;padding:6px 4px;opacity:0;transition:opacity .15s;flex:none;align-self:flex-start;margin-top:4px}
+.sec-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:flex-start;min-height:54px}
+.sec-del{border:0;background:transparent;color:var(--muted);font-size:.85rem;padding:6px 4px;opacity:0;transition:opacity .15s;flex:none;align-self:flex-start;padding-top:10px}
 .sec-row:hover>.sec-del{opacity:1}
 .sec-add{border:1.5px dashed var(--line);background:transparent;border-radius:8px;padding:5px 14px;font-size:.82rem;color:var(--muted);font-weight:600;margin-top:6px;display:block}
 .jam-controls{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
@@ -1166,7 +1171,7 @@ function renderJam(){
     const isPlaying = jam.nowSec === si, isEditing = state.addSec === si;
     const chips = sec.length ? sec.map((e, k) => {
       const {d, s} = normProg(e), ch = (CH_ALL[s]||CH)[d];
-      return `<span class="chip q-${ch.cls}${isPlaying&&jam.nowK===k?" now":""}" data-sec="${si}" data-k="${k}"><button class="c-play" data-chip="${k}" data-sec="${si}" aria-label="Play ${ch.sym}">${ch.sym}</button><button class="c-dur" data-dur="${k}" data-sec="${si}" aria-label="Change duration">${durLabel(durBeats(e))}</button><button class="c-x" data-remove="${k}" data-sec="${si}" aria-label="Remove ${ch.sym}">×</button></span>`;
+      return `<span class="chip q-${ch.cls}${isPlaying&&jam.nowK===k?" now":""}" data-sec="${si}" data-k="${k}"><button class="c-play" data-chip="${k}" data-sec="${si}" aria-label="Play ${ch.sym}"><span class="chip-num">${ch.numeral}</span><span class="chip-sym">${ch.sym}</span></button><span class="chip-bot"><button class="c-dur" data-dur="${k}" data-sec="${si}" aria-label="Change duration">${durLabel(durBeats(e))}</button><button class="c-x" data-remove="${k}" data-sec="${si}" aria-label="Remove ${ch.sym}">×</button></span></span>`;
     }).join("") : `<span class="empty">Empty — tap + to add chords</span>`;
     return `<div class="sec-row${isPlaying?" playing":""}${isEditing?" editing":""}" data-sec="${si}"><button class="sec-lbl" data-focus-sec="${si}" aria-label="Add chords to section ${label}">${label}</button><div class="sec-chips">${chips}</div>${state.sections.length>1?`<button class="sec-del" data-del-sec="${si}" aria-label="Remove section ${label}">×</button>`:""}</div>`;
   }).join("") + `<button class="sec-add" data-sec-add aria-label="Add a new section">+ Section</button>`;
