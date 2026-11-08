@@ -176,6 +176,14 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .chip.now .c-x,.chip.now .c-dur{color:var(--accent-ink)}
 .chip.now .c-dur{border-color:var(--accent-ink)}
 .empty{color:var(--muted);font-size:.9rem}
+.sec-row{display:flex;align-items:flex-start;gap:6px;width:100%;padding:2px 0}
+.sec-lbl{border:0;background:transparent;font-size:.75rem;font-weight:700;color:var(--muted);padding:8px 4px 8px 0;min-width:16px;cursor:pointer;font-family:var(--serif);line-height:1;flex:none}
+.sec-row.editing>.sec-lbl{color:var(--ink)}
+.sec-row.playing>.sec-lbl{color:var(--accent)}
+.sec-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:center;min-height:36px}
+.sec-del{border:0;background:transparent;color:var(--muted);font-size:.85rem;padding:6px 4px;opacity:0;transition:opacity .15s;flex:none;align-self:flex-start;margin-top:4px}
+.sec-row:hover>.sec-del{opacity:1}
+.sec-add{border:1.5px dashed var(--line);background:transparent;border-radius:8px;padding:5px 14px;font-size:.82rem;color:var(--muted);font-weight:600;margin-top:6px;display:block}
 .jam-controls{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
 
 /* Wooden metronome */
@@ -398,7 +406,7 @@ const INV = ["Root position","1st inversion","2nd inversion"];
 const STORE = "innerjam:v1";
 const state = {
   root:0, mode:"major", panel:null, gSub:"chords", pSub:"chords",
-  chordSize:"3", gMode:"strum", pMode:"chord", diagrams:true, strings:"top", bpm:90, beats:4, prog:null,
+  chordSize:"3", gMode:"strum", pMode:"chord", diagrams:true, strings:"top", bpm:90, beats:4, sections:null, addSec:0,
   scalePattern:"updown", scaleOct:3, scaleAfter:"up", scaleCue:true, scaleBpm:90,
   labels:"deg", shapeIdx:0, metroBpm:120, metroSound:"click",
   voicing:{}, view:null
@@ -408,13 +416,15 @@ try{
   if(s){
     delete s.view; delete s.panel;
     if(s.seventh !== undefined){ s.chordSize = s.seventh ? "7" : "3"; delete s.seventh; }
-    if(Array.isArray(s.prog)) s.prog = s.prog.map(normProg);
+    if(Array.isArray(s.prog) && !s.sections){ s.sections = [s.prog.map(normProg)]; delete s.prog; }
+    if(Array.isArray(s.sections)) s.sections = s.sections.map(sec => Array.isArray(sec) ? sec.map(normProg) : []);
+    if(typeof s.addSec !== "number" || s.addSec < 0) s.addSec = 0;
     Object.assign(state, s, {voicing:{}, panel:null});
   }
 }catch(e){}
 if(!MODES[state.mode]) state.mode = "major";
-if(!Array.isArray(state.prog)) state.prog = PRESETS[state.mode][0][0].map(d => ({d,s:"3"}));
-else state.prog = state.prog.map(normProg);
+if(!Array.isArray(state.sections) || !state.sections.length) state.sections = [PRESETS[state.mode][0][0].map(d => ({d,s:"3"}))];
+state.addSec = Math.min(state.addSec || 0, state.sections.length - 1);
 function save(){
   try{ const {voicing, view, panel, ...rest} = state; localStorage.setItem(STORE, JSON.stringify(rest)); }catch(e){}
 }
@@ -790,19 +800,20 @@ function playDegree(i, t, vel, size){
 }
 
 /* ---------- Progression looper ---------- */
-const jam = {on:false, timer:null, next:0, step:0, beat:0, nowK:-1, nowDeg:-1};
+const jam = {on:false, timer:null, next:0, step:0, beat:0, section:0, nowK:-1, nowDeg:-1, nowSec:-1};
 function startJam(){
-  if(!state.prog.length) return;
+  if(!state.sections.some(s => s.length > 0)) return;
   stopSeq();
   const c = ac();
-  jam.on = true; jam.next = c.currentTime + 0.1; jam.step = 0; jam.beat = 0;
+  jam.on = true; jam.next = c.currentTime + 0.1;
+  jam.step = 0; jam.beat = 0; jam.section = 0; jam.nowK = -1; jam.nowSec = -1;
   jam.timer = setInterval(jamTick, 25); jamTick();
   $("#playBtn").textContent = "Stop";
 }
 function stopJam(){
   if(!jam.on && jam.nowK < 0) return;
   jam.on = false; clearInterval(jam.timer); jam.timer = null;
-  jam.nowK = -1; jam.nowDeg = -1;
+  jam.nowK = -1; jam.nowDeg = -1; jam.nowSec = -1;
   $("#playBtn").textContent = "Play";
   $("#nowSym").textContent = "–"; $("#nowNext").textContent = "Press Play to loop";
   markNow();
@@ -810,14 +821,19 @@ function stopJam(){
 function jamTick(){
   const c = ac();
   while(jam.next < c.currentTime + 0.12){
-    const prog = state.prog;
-    if(!prog.length){ stopJam(); return; }
-    const k = jam.step % prog.length, e = normProg(prog[k]), deg = e.d, sz = e.s;
+    const secs = state.sections, n = secs.length;
+    // advance past empty sections
+    let guard = 0;
+    while(guard < n && !secs[jam.section % n].length){ jam.section = (jam.section + 1) % n; guard++; }
+    if(guard === n){ stopJam(); return; }
+    const si = jam.section % n, sec = secs[si];
+    if(jam.step >= sec.length){ jam.section = (jam.section + 1) % n; jam.step = 0; jam.beat = 0; continue; }
+    const k = jam.step, e = normProg(sec[k]), deg = e.d, sz = e.s;
     const chBeats = durBeats(e), b = jam.beat;
     if(b === 0){
       playDegree(deg, jam.next, 1, sz);
-      const when = jam.next;
-      setTimeout(() => { if(jam.on) setNow(k, deg, sz); }, Math.max(0, (when - c.currentTime) * 1000));
+      const when = jam.next, kk = k, ss = si;
+      setTimeout(() => { if(jam.on) setNow(ss, kk, deg, sz); }, Math.max(0, (when - c.currentTime) * 1000));
     } else if(chBeats >= 4 && b === chBeats / 2){
       playDegree(deg, jam.next, 0.55, sz);
     }
@@ -826,19 +842,22 @@ function jamTick(){
     if(jam.beat >= chBeats){ jam.beat = 0; jam.step++; }
   }
 }
-function setNow(k, deg, sz){
-  jam.nowK = k; jam.nowDeg = deg;
-  const p = state.prog;
+function setNow(si, k, deg, sz){
+  jam.nowK = k; jam.nowDeg = deg; jam.nowSec = si;
   const chNow = (CH_ALL[sz]||CH)[deg];
   $("#nowSym").textContent = chNow ? chNow.sym : "–";
-  const ne = normProg(p[(k+1) % p.length]);
-  const nxch = (CH_ALL[ne.s]||CH)[ne.d];
+  const secs = state.sections, n = secs.length, sec = secs[si];
+  let nextE;
+  if(k + 1 < sec.length){ nextE = normProg(sec[k + 1]); }
+  else { for(let i=1;i<=n;i++){ const ns=secs[(si+i)%n]; if(ns&&ns.length){ nextE=normProg(ns[0]); break; } } }
+  const nxch = nextE ? (CH_ALL[nextE.s]||CH)[nextE.d] : null;
   $("#nowNext").textContent = nxch ? "next " + nxch.sym : "";
   markNow();
 }
 function markNow(){
   $$(".card").forEach(el => el.classList.toggle("now", +el.dataset.i === jam.nowDeg));
-  $$(".chip").forEach(el => el.classList.toggle("now", +el.dataset.k === jam.nowK));
+  $$(".chip").forEach(el => el.classList.toggle("now", +el.dataset.sec === jam.nowSec && +el.dataset.k === jam.nowK));
+  $$(".sec-row").forEach(el => el.classList.toggle("playing", +el.dataset.sec === jam.nowSec));
 }
 
 /* ---------- Scale sequencer ---------- */
@@ -1142,15 +1161,15 @@ function renderJam(){
   $("#jam").hidden = !show;
   if(!show){ stopJam(); dock(); return; }
   const p = $("#prog");
-  if(!state.prog.length){
-    p.innerHTML = `<span class="empty">Tap + on any chord to start a progression, or load one from the list.</span>`;
-  } else {
-    p.innerHTML = state.prog.map((e, k) => {
+  p.innerHTML = state.sections.map((sec, si) => {
+    const label = String.fromCharCode(65 + si);
+    const isPlaying = jam.nowSec === si, isEditing = state.addSec === si;
+    const chips = sec.length ? sec.map((e, k) => {
       const {d, s} = normProg(e), ch = (CH_ALL[s]||CH)[d];
-      const beats = durBeats(e);
-      return `<span class="chip q-${ch.cls}${jam.nowK===k?" now":""}" data-k="${k}"><button class="c-play" data-chip="${k}" aria-label="Play ${ch.sym}">${ch.sym}</button><button class="c-dur" data-dur="${k}" aria-label="Change duration">${durLabel(beats)}</button><button class="c-x" data-remove="${k}" aria-label="Remove ${ch.sym}">×</button></span>`;
-    }).join("");
-  }
+      return `<span class="chip q-${ch.cls}${isPlaying&&jam.nowK===k?" now":""}" data-sec="${si}" data-k="${k}"><button class="c-play" data-chip="${k}" data-sec="${si}" aria-label="Play ${ch.sym}">${ch.sym}</button><button class="c-dur" data-dur="${k}" data-sec="${si}" aria-label="Change duration">${durLabel(durBeats(e))}</button><button class="c-x" data-remove="${k}" data-sec="${si}" aria-label="Remove ${ch.sym}">×</button></span>`;
+    }).join("") : `<span class="empty">Empty — tap + to add chords</span>`;
+    return `<div class="sec-row${isPlaying?" playing":""}${isEditing?" editing":""}" data-sec="${si}"><button class="sec-lbl" data-focus-sec="${si}" aria-label="Add chords to section ${label}">${label}</button><div class="sec-chips">${chips}</div>${state.sections.length>1?`<button class="sec-del" data-del-sec="${si}" aria-label="Remove section ${label}">×</button>`:""}</div>`;
+  }).join("") + `<button class="sec-add" data-sec-add aria-label="Add a new section">+ Section</button>`;
   $("#preset").innerHTML = `<option value="">Load a progression…</option>` + PRESETS[state.mode].map(([degs, name], k) =>
     `<option value="${k}">${degs.map(d => CH_ALL["3"][d].numeral).join("–")}  ${name}</option>`).join("");
   $("#bpm").value = state.bpm; $("#bpmVal").textContent = state.bpm;
@@ -1174,7 +1193,7 @@ function buildMidi(){
   evs.push({tick: 0, b: [0xFF, 0x51, 0x03, (tempo >> 16) & 0xFF, (tempo >> 8) & 0xFF, tempo & 0xFF]});
 
   let t = 0;
-  state.prog.forEach(e => {
+  state.sections.forEach(sec => sec.forEach(e => {
     const ne = normProg(e), ch = (CH_ALL[ne.s] || CH)[ne.d];
     const r = 60 + ch.root;
     const notes = [r - 12, ...ch.ints.map(n => r + n)].map(n => Math.max(0, Math.min(127, n)));
@@ -1182,7 +1201,7 @@ function buildMidi(){
     notes.forEach(m => evs.push({tick: t,          b: [0x90, m, 80]}));
     notes.forEach(m => evs.push({tick: t + ticks - 1, b: [0x80, m, 0]}));
     t += ticks;
-  });
+  }));
   evs.push({tick: t, b: [0xFF, 0x2F, 0x00]});
 
   evs.sort((a, b) => a.tick - b.tick);
@@ -1223,7 +1242,7 @@ $("#panel").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b || b.disabled) return;
   const d = b.dataset;
   if(d.play != null){ playDegree(+d.play); return; }
-  if(d.add != null){ if(state.prog.length < 12){ const entry={d:+d.add,s:state.chordSize,b:state.beats}; state.prog.push(entry); playDegree(entry.d,null,null,entry.s); renderJam(); save(); } return; }
+  if(d.add != null){ const sec=state.sections[state.addSec]; if(sec&&sec.length<12){ const entry={d:+d.add,s:state.chordSize,b:state.beats}; sec.push(entry); playDegree(entry.d,null,null,entry.s); renderJam(); save(); } return; }
   if(d.vnext != null || d.vprev != null){
     const i = +(d.vnext ?? d.vprev), dir = d.vnext != null ? "vnext" : "vprev";
     state.voicing[i] = (state.voicing[i] || 0) + (dir === "vnext" ? 1 : -1);
@@ -1266,28 +1285,41 @@ $("#panel").addEventListener("change", e => {
 });
 $("#prog").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
-  if(b.dataset.chip != null){ const e=normProg(state.prog[+b.dataset.chip]); playDegree(e.d,null,null,e.s); }
+  const si = b.dataset.sec != null ? +b.dataset.sec : (b.dataset.focusSec != null ? +b.dataset.focusSec : (b.dataset.delSec != null ? +b.dataset.delSec : null));
+  if(b.dataset.chip != null){ const ent=normProg(state.sections[si][+b.dataset.chip]); playDegree(ent.d,null,null,ent.s); }
   else if(b.dataset.dur != null){
-    const k = +b.dataset.dur, e = normProg(state.prog[k]);
-    const cur = e.b || state.beats;
-    const next = DUR_CYCLE[(DUR_CYCLE.indexOf(cur) + 1) % DUR_CYCLE.length];
-    state.prog[k] = {...e, b: next};
+    const k=+b.dataset.dur, ent=normProg(state.sections[si][k]);
+    state.sections[si][k]={...ent,b:DUR_CYCLE[(DUR_CYCLE.indexOf(ent.b||state.beats)+1)%DUR_CYCLE.length]};
     renderJam(); save();
   }
   else if(b.dataset.remove != null){
-    state.prog.splice(+b.dataset.remove, 1);
-    if(!state.prog.length && jam.on) stopJam();
-    jam.nowK = -1; renderJam(); markNow(); save();
+    state.sections[si].splice(+b.dataset.remove,1);
+    if(state.sections.every(s=>!s.length)&&jam.on) stopJam();
+    jam.nowK=-1; renderJam(); markNow(); save();
+  }
+  else if(b.dataset.focusSec != null){ state.addSec=+b.dataset.focusSec; renderJam(); save(); }
+  else if(b.dataset.delSec != null){
+    const di=+b.dataset.delSec;
+    state.sections.splice(di,1);
+    if(!state.sections.length) state.sections=[[]];
+    state.addSec=Math.min(state.addSec,state.sections.length-1);
+    if(state.sections.every(s=>!s.length)&&jam.on) stopJam();
+    jam.nowK=-1; renderJam(); markNow(); save();
+  }
+  else if(b.dataset.secAdd != null){
+    state.sections.push([]);
+    state.addSec=state.sections.length-1;
+    renderJam(); save();
   }
 });
 $("#preset").addEventListener("change", e => {
   const v = e.target.value; if(v === "") return;
-  state.prog = PRESETS[state.mode][+v][0].map(d => ({d, s:state.chordSize})); jam.step = 0; jam.nowK = -1;
+  state.sections[state.addSec] = PRESETS[state.mode][+v][0].map(d => ({d, s:state.chordSize, b:state.beats})); jam.step = 0; jam.nowK = -1;
   renderJam(); save();
 });
 $("#playBtn").addEventListener("click", () => jam.on ? stopJam() : startJam());
 $("#exportBtn").addEventListener("click", () => {
-  if(!state.prog.length) return;
+  if(!state.sections.some(s => s.length > 0)) return;
   const bytes = buildMidi();
   const slug = `${NAMES[0]}-${MODES[state.mode].label}`.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
   const a = document.createElement("a");
@@ -1296,7 +1328,7 @@ $("#exportBtn").addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(a.href);
 });
-$("#clearBtn").addEventListener("click", () => { state.prog = []; if(jam.on) stopJam(); renderJam(); save(); });
+$("#clearBtn").addEventListener("click", () => { state.sections[state.addSec]=[]; if(state.sections.every(s=>!s.length)&&jam.on) stopJam(); jam.nowK=-1; renderJam(); markNow(); save(); });
 $("#bpm").addEventListener("input", e => { state.bpm = +e.target.value; $("#bpmVal").textContent = state.bpm; if(metro.on){ state.metroBpm = state.bpm; metroUI(); } save(); });
 $("#beats").addEventListener("change", e => { state.beats = +e.target.value; jam.beat = 0; save(); });
 
