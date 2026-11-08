@@ -168,10 +168,10 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .now-next{color:var(--muted);font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prog{display:flex;flex-direction:column;gap:4px;min-height:54px}
 /* Fixed-width chord tiles — same size regardless of symbol length, no reflow */
-.chip{display:inline-flex;flex-direction:column;width:60px;flex:none;border:1.5px solid var(--line);border-top:3px solid var(--q);border-radius:8px;background:var(--surface);overflow:hidden;transition:border-color .12s,box-shadow .12s}
+.chip{display:inline-flex;flex-direction:column;width:120px;flex:none;border:1.5px solid var(--line);border-top:3px solid var(--q);border-radius:8px;background:var(--surface);overflow:hidden;transition:border-color .12s,box-shadow .12s}
 .chip .c-play{border:0;background:transparent;padding:5px 4px 3px;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
 .chip-num{font-family:var(--serif);font-size:.65rem;color:var(--q);line-height:1}
-.chip-sym{font-family:var(--serif);font-size:.88rem;line-height:1.2;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px}
+.chip-sym{font-family:var(--serif);font-size:.88rem;line-height:1.2;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:112px}
 .chip-bot{display:flex;width:100%;border-top:1px solid var(--line)}
 .chip .c-dur{flex:1;border:0;border-right:1px solid var(--line);background:transparent;padding:3px 0;font-size:.65rem;font-weight:700;color:var(--muted);text-align:center;font-family:var(--serif)}
 .chip .c-x{border:0;background:transparent;padding:3px 8px;color:var(--muted);font-size:.8rem;line-height:1}
@@ -188,7 +188,7 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .sec-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;align-items:flex-start;min-height:54px}
 .sec-del{border:0;background:transparent;color:var(--muted);font-size:.85rem;padding:6px 4px;opacity:0;transition:opacity .15s;flex:none;align-self:flex-start;padding-top:10px}
 .sec-row:hover>.sec-del{opacity:1}
-.sec-add{border:1.5px dashed var(--line);background:transparent;border-radius:8px;padding:5px 14px;font-size:.82rem;color:var(--muted);font-weight:600;margin-top:6px;display:block}
+.sec-add{border:1.5px dashed var(--line);background:transparent;border-radius:8px;padding:5px 12px;font-size:.82rem;color:var(--muted);font-weight:600;margin-top:6px;display:inline-flex;align-items:center;align-self:flex-start}
 .jam-controls{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
 
 /* Wooden metronome */
