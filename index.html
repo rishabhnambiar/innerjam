@@ -49,7 +49,7 @@ button:disabled{cursor:not-allowed}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
 
-.wrap{max-width:1080px;margin:0 auto;padding:20px 18px 120px}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 18px calc(32px + var(--dock,80px))}
 header.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
 .brand{font-family:var(--serif);font-size:1.4rem;margin:0}
 .lede{color:var(--muted);margin:0;font-size:.95rem;max-width:56ch}
@@ -97,7 +97,8 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .hint{color:var(--muted);font-size:.85rem;margin:0}
 .btn{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);padding:8px 14px;font-weight:600}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);min-width:120px}
-select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);padding:8px 10px;max-width:100%}
+select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);padding:8px 10px;max-width:100%;min-width:0}
+#preset{flex:1;min-width:120px}
 .field{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--muted)}
 .field input[type=range]{width:120px;accent-color:var(--accent)}
 .field strong{color:var(--ink);min-width:2.2em}
@@ -140,6 +141,11 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .vnav{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:4px}
 .vnav button,.shape-nav button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);font-size:1rem;line-height:1;flex:none}
 .vnav span{font-size:.75rem;color:var(--muted);text-align:center;line-height:1.25}
+#grid.no-diag .diagram{display:none}
+#grid.no-diag .vnav{display:none}
+.diag-toggle{margin-left:auto;border:1.5px solid var(--line);background:transparent;border-radius:8px;padding:7px 10px;min-height:32px;color:var(--muted);display:flex;align-items:center;gap:5px;font-size:.8rem;font-weight:600}
+.diag-toggle[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
+.tools .hint{flex-basis:100%}
 
 /* Fretboard and keyboard */
 .shape-nav{display:flex;align-items:center;gap:8px}
@@ -164,9 +170,11 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 .chip{display:inline-flex;align-items:center;border:1.5px solid var(--line);border-radius:999px;background:var(--bg);overflow:hidden}
 .chip .c-play{border:0;background:transparent;padding:6px 4px 6px 12px;font-weight:600;display:flex;align-items:center;gap:6px}
 .chip .c-play::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--q)}
+.chip .c-dur{border:0;border-left:1px solid var(--line);background:transparent;padding:0 7px;font-size:.72rem;font-weight:700;color:var(--muted);min-width:1.8em;text-align:center;font-family:var(--serif);align-self:stretch;display:flex;align-items:center;justify-content:center}
 .chip .c-x{border:0;background:transparent;padding:6px 10px 6px 6px;color:var(--muted);font-size:1rem;line-height:1}
 .chip.now{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
-.chip.now .c-x{color:var(--accent-ink)}
+.chip.now .c-x,.chip.now .c-dur{color:var(--accent-ink)}
+.chip.now .c-dur{border-color:var(--accent-ink)}
 .empty{color:var(--muted);font-size:.9rem}
 .jam-controls{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
 
@@ -272,6 +280,7 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
       <button class="btn primary" id="playBtn">Play</button>
       <label class="sr" for="preset">Load a progression</label>
       <select id="preset"></select>
+      <button class="btn" id="exportBtn" aria-label="Export progression as MIDI">Export MIDI</button>
       <label class="field">Tempo <input type="range" id="bpm" min="50" max="180" step="1"><strong id="bpmVal">90</strong></label>
       <label class="field">Beats per chord
         <select id="beats"><option value="2">2</option><option value="4">4</option><option value="8">8</option></select>
@@ -308,7 +317,11 @@ select{border-radius:10px;border:1.5px solid var(--line);background:var(--bg);pa
 "use strict";
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
-const normProg = e => typeof e === "number" ? {d:e,s:"3"} : (e.s ? e : {...e,s:"3"});
+const normProg = e => typeof e === "number" ? {d:e,s:"3",b:null} : (e.s ? e : {...e,s:"3"});
+const durBeats = e => normProg(e).b || state.beats;
+const DUR_CYCLE = [1,2,4,8];
+const durLabel = b => b===1?"¼":b===2?"½":b===4?"1":"2";
+
 
 /* ---------- Music data ---------- */
 const LET = ["C","D","E","F","G","A","B"];
@@ -380,7 +393,7 @@ const INV = ["Root position","1st inversion","2nd inversion"];
 const STORE = "innerjam:v1";
 const state = {
   root:0, mode:"major", panel:null, gSub:"chords", pSub:"chords",
-  chordSize:"3", gMode:"strum", strings:"top", bpm:90, beats:4, prog:null,
+  chordSize:"3", gMode:"strum", pMode:"chord", diagrams:true, strings:"top", bpm:90, beats:4, prog:null,
   scalePattern:"updown", scaleOct:3, scaleAfter:"up", scaleCue:true, scaleBpm:90,
   labels:"deg", shapeIdx:0, metroBpm:120,
   voicing:{}, view:null
@@ -738,8 +751,13 @@ function playDegree(i, t, vel, size){
     return;
   }
   const r = 60 + ch.root;
-  pianoNote(r - 12, t, 0.2 * vel);
-  ch.ints.forEach(n => pianoNote(r + n, t, 0.16 * vel));
+  if(state.pMode === "arp"){
+    const notes = [r - 12, ...ch.ints.map(n => r + n)];
+    notes.forEach((m, j) => pianoNote(m, t + j * 0.07, (j === 0 ? 0.22 : 0.15) * vel, 3.4));
+  } else {
+    pianoNote(r - 12, t, 0.2 * vel);
+    ch.ints.forEach(n => pianoNote(r + n, t, 0.16 * vel));
+  }
 }
 
 /* ---------- Progression looper ---------- */
@@ -765,17 +783,18 @@ function jamTick(){
   while(jam.next < c.currentTime + 0.12){
     const prog = state.prog;
     if(!prog.length){ stopJam(); return; }
-    const k = jam.step % prog.length, e = normProg(prog[k]), deg = e.d, sz = e.s, b = jam.beat;
+    const k = jam.step % prog.length, e = normProg(prog[k]), deg = e.d, sz = e.s;
+    const chBeats = durBeats(e), b = jam.beat;
     if(b === 0){
       playDegree(deg, jam.next, 1, sz);
       const when = jam.next;
       setTimeout(() => { if(jam.on) setNow(k, deg, sz); }, Math.max(0, (when - c.currentTime) * 1000));
-    } else if(state.beats >= 4 && b === state.beats / 2){
+    } else if(chBeats >= 4 && b === chBeats / 2){
       playDegree(deg, jam.next, 0.55, sz);
     }
     jam.next += 60 / state.bpm;
     jam.beat++;
-    if(jam.beat >= state.beats){ jam.beat = 0; jam.step++; }
+    if(jam.beat >= chBeats){ jam.beat = 0; jam.step++; }
   }
 }
 function setNow(k, deg, sz){
@@ -960,6 +979,12 @@ const chordHint = `<p class="hint">Tap a chord to hear it, + to add it to your p
 const strumPills = () => `<div class="pills" role="group" aria-label="Playing style">
   <button class="pill" data-gmode="strum" ${pressed(state.gMode!=="finger")}>Strum</button>
   <button class="pill" data-gmode="finger" ${pressed(state.gMode==="finger")}>Fingerpick</button></div>`;
+const pianoModePills = () => `<div class="pills" role="group" aria-label="Playing style">
+  <button class="pill" data-pmode="chord" ${pressed(state.pMode!=="arp")}>Chord</button>
+  <button class="pill" data-pmode="arp" ${pressed(state.pMode==="arp")}>Arpeggio</button></div>`;
+const EYE_ON  = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2.2"/></svg>`;
+const EYE_OFF = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2.2"/><line x1="2" y1="14" x2="14" y2="2"/></svg>`;
+const diagToggleBtn = () => `<button class="diag-toggle" data-diag-toggle aria-label="${state.diagrams ? 'Hide diagrams' : 'Show diagrams'}" aria-pressed="${String(!state.diagrams)}">${state.diagrams ? EYE_ON : EYE_OFF} Diagrams</button>`;
 const keyName = () => `${NAMES[0]} ${MODES[state.mode].label}`;
 
 function scalePanel(){
@@ -996,11 +1021,11 @@ function guitarPanel(){
     .map(([v,l]) => `<button class="sub" data-gsub="${v}" ${pressed(state.gSub===v)}>${l}</button>`).join("");
   let body = "";
   if(state.gSub === "chords"){
-    body = `<div class="tools">${sizePills()}${strumPills()}${chordHint}</div><div class="grid" id="grid"></div>`;
+    body = `<div class="tools">${sizePills()}${strumPills()}${diagToggleBtn()}${chordHint}</div><div class="grid" id="grid"></div>`;
   } else if(state.gSub === "triads"){
     const sets = [["top","G B E"],["mid","D G B"],["low","A D G"]]
       .map(([v,l]) => `<button class="pill" data-strings="${v}" ${pressed(state.strings===v)}>${l}</button>`).join("");
-    body = `<div class="tools"><div class="pills" role="group" aria-label="Strings">${sets}</div>${strumPills()}${chordHint}</div><div class="grid" id="grid"></div>`;
+    body = `<div class="tools"><div class="pills" role="group" aria-label="Strings">${sets}</div>${strumPills()}${diagToggleBtn()}${chordHint}</div><div class="grid" id="grid"></div>`;
   } else {
     const shapes = scaleShapes();
     const whole = state.shapeIdx < 0;
@@ -1025,7 +1050,7 @@ function pianoPanel(){
     .map(([v,l]) => `<button class="sub" data-psub="${v}" ${pressed(state.pSub===v)}>${l}</button>`).join("");
   let body = "";
   if(state.pSub === "chords"){
-    body = `<div class="tools">${sizePills()}${chordHint}</div><div class="grid" id="grid"></div>`;
+    body = `<div class="tools">${sizePills()}${pianoModePills()}${diagToggleBtn()}${chordHint}</div><div class="grid" id="grid"></div>`;
   } else {
     body = `<div class="tools">${labelPills()}</div>
     <div class="keys-wrap">${scalePianoSVG()}</div>
@@ -1039,6 +1064,7 @@ function pianoPanel(){
 }
 function renderGrid(){
   const g = $("#grid"); if(!g) return;
+  g.classList.toggle("no-diag", !state.diagrams);
   g.innerHTML = CH.map((ch, i) => {
     let diagram = "", nav = "";
     if(state.view === "piano"){
@@ -1080,7 +1106,8 @@ function renderJam(){
   } else {
     p.innerHTML = state.prog.map((e, k) => {
       const {d, s} = normProg(e), ch = (CH_ALL[s]||CH)[d];
-      return `<span class="chip q-${ch.cls}${jam.nowK===k?" now":""}" data-k="${k}"><button class="c-play" data-chip="${k}" aria-label="Play ${ch.sym}">${ch.sym}</button><button class="c-x" data-remove="${k}" aria-label="Remove ${ch.sym}">×</button></span>`;
+      const beats = durBeats(e);
+      return `<span class="chip q-${ch.cls}${jam.nowK===k?" now":""}" data-k="${k}"><button class="c-play" data-chip="${k}" aria-label="Play ${ch.sym}">${ch.sym}</button><button class="c-dur" data-dur="${k}" aria-label="Change duration">${durLabel(beats)}</button><button class="c-x" data-remove="${k}" aria-label="Remove ${ch.sym}">×</button></span>`;
     }).join("");
   }
   $("#preset").innerHTML = `<option value="">Load a progression…</option>` + PRESETS[state.mode].map(([degs, name], k) =>
@@ -1095,6 +1122,49 @@ function dock(){
   document.documentElement.style.setProperty("--dock", j.hidden ? "0px" : j.offsetHeight + "px");
 }
 function render(){ buildChords(); renderKey(); renderPanel(); renderJam(); save(); }
+
+/* ---------- MIDI export ---------- */
+function buildMidi(){
+  const ppq = 480;
+  const tempo = Math.round(60000000 / state.bpm); // µs per beat
+
+  // Collect events as {tick, bytes[]}
+  const evs = [];
+  evs.push({tick: 0, b: [0xFF, 0x51, 0x03, (tempo >> 16) & 0xFF, (tempo >> 8) & 0xFF, tempo & 0xFF]});
+
+  let t = 0;
+  state.prog.forEach(e => {
+    const ne = normProg(e), ch = (CH_ALL[ne.s] || CH)[ne.d];
+    const r = 60 + ch.root;
+    const notes = [r - 12, ...ch.ints.map(n => r + n)].map(n => Math.max(0, Math.min(127, n)));
+    const ticks = ppq * durBeats(e);
+    notes.forEach(m => evs.push({tick: t,          b: [0x90, m, 80]}));
+    notes.forEach(m => evs.push({tick: t + ticks - 1, b: [0x80, m, 0]}));
+    t += ticks;
+  });
+  evs.push({tick: t, b: [0xFF, 0x2F, 0x00]});
+
+  evs.sort((a, b) => a.tick - b.tick);
+
+  function vlq(n){
+    if(n === 0) return [0];
+    const out = []; let v = n;
+    out.unshift(v & 0x7F); v >>= 7;
+    while(v > 0){ out.unshift((v & 0x7F) | 0x80); v >>= 7; }
+    return out;
+  }
+
+  const track = [];
+  let prev = 0;
+  evs.forEach(ev => { track.push(...vlq(ev.tick - prev), ...ev.b); prev = ev.tick; });
+
+  const tl = track.length;
+  return new Uint8Array([
+    0x4D,0x54,0x68,0x64, 0x00,0x00,0x00,0x06, 0x00,0x00, 0x00,0x01, (ppq>>8)&0xFF, ppq&0xFF,
+    0x4D,0x54,0x72,0x6B, (tl>>24)&0xFF,(tl>>16)&0xFF,(tl>>8)&0xFF,tl&0xFF,
+    ...track
+  ]);
+}
 
 /* ---------- Events ---------- */
 $("#wheel").addEventListener("click", e => {
@@ -1112,7 +1182,7 @@ $("#panel").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b || b.disabled) return;
   const d = b.dataset;
   if(d.play != null){ playDegree(+d.play); return; }
-  if(d.add != null){ if(state.prog.length < 12){ const entry={d:+d.add,s:state.chordSize}; state.prog.push(entry); playDegree(entry.d,null,null,entry.s); renderJam(); save(); } return; }
+  if(d.add != null){ if(state.prog.length < 12){ const entry={d:+d.add,s:state.chordSize,b:state.beats}; state.prog.push(entry); playDegree(entry.d,null,null,entry.s); renderJam(); save(); } return; }
   if(d.vnext != null || d.vprev != null){
     const i = +(d.vnext ?? d.vprev), dir = d.vnext != null ? "vnext" : "vprev";
     state.voicing[i] = (state.voicing[i] || 0) + (dir === "vnext" ? 1 : -1);
@@ -1132,6 +1202,8 @@ $("#panel").addEventListener("click", e => {
   else if(d.psub){ stopSeq(); state.pSub = d.psub; }
   else if(d.size){ state.chordSize = d.size; state.voicing = {}; }
   else if(d.gmode){ state.gMode = d.gmode; }
+  else if(d.pmode){ state.pMode = d.pmode; }
+  else if("diagToggle" in d){ state.diagrams = !state.diagrams; }
   else if(d.strings){ state.strings = d.strings; state.voicing = {}; }
   else if(d.labels){ state.labels = d.labels; }
   else if(d.after){ state.scaleAfter = d.after; $$("[data-after]").forEach(x => x.setAttribute("aria-pressed", x.dataset.after === d.after)); save(); return; }
@@ -1154,6 +1226,13 @@ $("#panel").addEventListener("change", e => {
 $("#prog").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   if(b.dataset.chip != null){ const e=normProg(state.prog[+b.dataset.chip]); playDegree(e.d,null,null,e.s); }
+  else if(b.dataset.dur != null){
+    const k = +b.dataset.dur, e = normProg(state.prog[k]);
+    const cur = e.b || state.beats;
+    const next = DUR_CYCLE[(DUR_CYCLE.indexOf(cur) + 1) % DUR_CYCLE.length];
+    state.prog[k] = {...e, b: next};
+    renderJam(); save();
+  }
   else if(b.dataset.remove != null){
     state.prog.splice(+b.dataset.remove, 1);
     if(!state.prog.length && jam.on) stopJam();
@@ -1166,6 +1245,16 @@ $("#preset").addEventListener("change", e => {
   renderJam(); save();
 });
 $("#playBtn").addEventListener("click", () => jam.on ? stopJam() : startJam());
+$("#exportBtn").addEventListener("click", () => {
+  if(!state.prog.length) return;
+  const bytes = buildMidi();
+  const slug = `${NAMES[0]}-${MODES[state.mode].label}`.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([bytes], {type: "audio/midi"}));
+  a.download = `${slug}-progression.mid`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 $("#clearBtn").addEventListener("click", () => { state.prog = []; if(jam.on) stopJam(); renderJam(); save(); });
 $("#bpm").addEventListener("input", e => { state.bpm = +e.target.value; $("#bpmVal").textContent = state.bpm; save(); });
 $("#beats").addEventListener("change", e => { state.beats = +e.target.value; jam.beat = 0; save(); });
