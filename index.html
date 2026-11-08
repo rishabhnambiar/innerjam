@@ -713,14 +713,14 @@ function ksBuffer(m){
   const c = ac(), sr = c.sampleRate, N = Math.max(2, Math.round(sr / hz(m)));
   const len = Math.floor(sr * 2.6), buf = c.createBuffer(1, len, sr), d = buf.getChannelData(0);
   for(let n=0;n<N;n++) d[n] = Math.random()*2-1;
-  for(let p=0;p<5;p++) for(let n=1;n<N;n++) d[n] = 0.5*(d[n]+d[n-1]); // pre-smooth for warmth
-  for(let n=N;n<len;n++) d[n] = 0.9965 * 0.5 * (d[n-N] + (n-N-1 >= 0 ? d[n-N-1] : 0));
+  for(let p=0;p<8;p++) for(let n=1;n<N;n++) d[n] = 0.5*(d[n]+d[n-1]); // pre-smooth for warmth
+  for(let n=N;n<len;n++) d[n] = 0.9958 * 0.5 * (d[n-N] + (n-N-1 >= 0 ? d[n-N-1] : 0));
   ksCache.set(m, buf);
   return buf;
 }
 function guitarNote(m, t, vel){
   const c = ac(), src = c.createBufferSource(), g = c.createGain(), lp = c.createBiquadFilter();
-  src.buffer = ksBuffer(m); lp.type = "lowpass"; lp.frequency.value = 3800; lp.Q.value = 0.4;
+  src.buffer = ksBuffer(m); lp.type = "lowpass"; lp.frequency.value = 2000; lp.Q.value = 0.7;
   g.gain.value = vel;
   src.connect(lp); lp.connect(g); g.connect(master); src.start(t);
 }
