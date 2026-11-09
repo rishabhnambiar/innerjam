@@ -730,6 +730,18 @@ function pianoNote(m, t, vel, dur){
   g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
   o1.start(t); o2.start(t); o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
 }
+function melodyNote(m, t){
+  const c = ac(); if(t == null) t = c.currentTime + 0.01;
+  const f = hz(m);
+  const g = c.createGain(), o = c.createOscillator();
+  o.type = "sine"; o.frequency.value = f;
+  o.connect(g); g.connect(master);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.38, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.12, t + 0.18);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + 1.8);
+  o.start(t); o.stop(t + 1.85);
+}
 function ksBuffer(m){
   if(ksCache.has(m)) return ksCache.get(m);
   const c = ac(), sr = c.sampleRate, N = Math.max(2, Math.round(sr / hz(m)));
@@ -1374,12 +1386,25 @@ document.addEventListener("click", e => {
   if($("#metroPop").hidden) return;
   if(!e.target.closest("#metroPop") && !e.target.closest("#metroBtn")) setMetroOpen(false);
 });
+let melodyHlTimer;
 document.addEventListener("keydown", e => {
   if(e.key === "Escape" && !$("#metroPop").hidden){ setMetroOpen(false); $("#metroBtn").focus(); return; }
   if(e.target.matches("input, select") || !state.view) return;
   if(e.code === "Space" && !e.target.closest("button")){ e.preventDefault(); jam.on ? stopJam() : startJam(); }
   const n = parseInt(e.key, 10);
-  if(n >= 1 && n <= 7 && !e.metaKey && !e.ctrlKey) playDegree(n - 1);
+  if(n >= 1 && n <= 7 && !e.metaKey && !e.ctrlKey && !e.repeat){
+    if(jam.on){
+      // Play a single melody note — scale degree in octave 5, ascending
+      const steps = MODES[state.mode].steps;
+      const m = 60 + state.root + 12 + steps[n - 1];
+      melodyNote(m);
+      hl(`.deg[data-d="${n - 1}"]`);
+      clearTimeout(melodyHlTimer);
+      melodyHlTimer = setTimeout(clearHl, 550);
+    } else {
+      playDegree(n - 1);
+    }
+  }
 });
 window.addEventListener("resize", dock);
 
