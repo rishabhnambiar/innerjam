@@ -704,7 +704,7 @@ function fretboardSVG(shape){
 }
 
 /* ---------- Audio ---------- */
-let ctx = null, master = null, noiseBuf = null, longNoise = null;
+let ctx = null, master = null, noiseBuf = null, longNoise = null, dreamyBus = null;
 const ksCache = new Map();
 function ac(){
   if(!ctx){
@@ -752,11 +752,41 @@ function ksBuffer(m){
   ksCache.set(m, buf);
   return buf;
 }
-function guitarNote(m, t, vel){
+function guitarNote(m, t, vel, dest){
   const c = ac(), src = c.createBufferSource(), g = c.createGain(), lp = c.createBiquadFilter();
   src.buffer = ksBuffer(m); lp.type = "lowpass"; lp.frequency.value = 2000; lp.Q.value = 0.7;
   g.gain.value = vel;
-  src.connect(lp); lp.connect(g); g.connect(master); src.start(t);
+  src.connect(lp); lp.connect(g); g.connect(dest || master); src.start(t);
+}
+function getDreamyBus(){
+  if(dreamyBus) return dreamyBus;
+  const c = ac();
+  // Shared dreamy effects chain: input → dry + delay-feedback-loop → reverb → master
+  const input = c.createGain(); input.gain.value = 0.9;
+  // Synthetic plate reverb impulse response (~2.8 s exponential decay)
+  const reverb = c.createConvolver();
+  const sr = c.sampleRate, rt = 2.8, rlen = Math.floor(sr * rt);
+  const ir = c.createBuffer(2, rlen, sr);
+  for(let ch = 0; ch < 2; ch++){
+    const d = ir.getChannelData(ch);
+    for(let i = 0; i < rlen; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/rlen, 1.8);
+  }
+  reverb.buffer = ir;
+  // Dotted-eighth delay (360 ms) with gentle feedback
+  const delay = c.createDelay(1.0); delay.delayTime.value = 0.36;
+  const fbGain = c.createGain(); fbGain.gain.value = 0.3;
+  const fbLP = c.createBiquadFilter(); fbLP.type = "lowpass"; fbLP.frequency.value = 2800;
+  // Output mix nodes
+  const dryG = c.createGain(); dryG.gain.value = 0.48;
+  const delayG = c.createGain(); delayG.gain.value = 0.38;
+  const verbG = c.createGain(); verbG.gain.value = 0.46;
+  // Routing
+  input.connect(dryG); dryG.connect(master);                           // dry path
+  input.connect(delay); delay.connect(fbLP); fbLP.connect(fbGain); fbGain.connect(delay); // feedback
+  delay.connect(delayG); delayG.connect(master);                       // delay out
+  input.connect(reverb); delay.connect(reverb); reverb.connect(verbG); verbG.connect(master); // reverb
+  dreamyBus = input;
+  return dreamyBus;
 }
 function woodblock(t, accent){
   const c = ac();
@@ -821,9 +851,14 @@ function playDegree(i, t, vel, size){
   const ch = (size ? CH_ALL[size] : CH)[i];
   if(state.view === "guitar" || state.view === "triads"){
     const cv = currentVoicing(i); if(!cv) return;
-    const finger = state.gMode === "finger";
-    let j = 0;
-    cv.v.frets.forEach((f, s) => { if(f !== null){ guitarNote(OPEN_MIDI[s] + f, t + j*(finger ? 0.09 : 0.022), (finger ? 0.28 : 0.42) * vel); j++; } });
+    if(state.gMode === "dreamy"){
+      const bus = getDreamyBus();
+      cv.v.frets.forEach((f, s) => { if(f !== null) guitarNote(OPEN_MIDI[s] + f, t, 0.19 * vel, bus); });
+    } else {
+      const finger = state.gMode === "finger";
+      let j = 0;
+      cv.v.frets.forEach((f, s) => { if(f !== null){ guitarNote(OPEN_MIDI[s] + f, t + j*(finger ? 0.09 : 0.022), (finger ? 0.28 : 0.42) * vel); j++; } });
+    }
     return;
   }
   const r = 60 + ch.root;
@@ -1076,8 +1111,9 @@ const sizePills = () => `<div class="pills" role="group" aria-label="Chord size"
   <button class="pill" data-size="13" ${pressed(state.chordSize==="13")}>13ths</button></div>`;
 const chordHint = `<p class="hint">Tap a chord to hear it, + to add it to your progression. Amber is major, teal is minor, rose is diminished.</p>`;
 const strumPills = () => `<div class="pills" role="group" aria-label="Playing style">
-  <button class="pill" data-gmode="strum" ${pressed(state.gMode!=="finger")}>Strum</button>
-  <button class="pill" data-gmode="finger" ${pressed(state.gMode==="finger")}>Fingerpick</button></div>`;
+  <button class="pill" data-gmode="strum" ${pressed(state.gMode==="strum"||!state.gMode)}>Strum</button>
+  <button class="pill" data-gmode="finger" ${pressed(state.gMode==="finger")}>Fingerpick</button>
+  <button class="pill" data-gmode="dreamy" ${pressed(state.gMode==="dreamy")}>Dreamy</button></div>`;
 const pianoModePills = () => `<div class="pills" role="group" aria-label="Playing style">
   <button class="pill" data-pmode="chord" ${pressed(state.pMode!=="arp")}>Chord</button>
   <button class="pill" data-pmode="arp" ${pressed(state.pMode==="arp")}>Arpeggio</button></div>`;
