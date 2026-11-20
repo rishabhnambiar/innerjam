@@ -60,7 +60,7 @@ Keep it a single file unless it grows past what's comfortable to edit; if splitt
 
 ## Ideas backlog (not built yet)
 
-- Installable web app with offline support (manifest, icons, service worker) for rehearsal rooms without signal.
+- ~~Installable web app with offline support (manifest, icons, service worker) for rehearsal rooms without signal.~~ Done — `manifest.json`, `sw.js`, `icon.svg` added; SW caches all local assets + Google Fonts on first visit.
 - Capo setting that suggests easier open shapes.
 - Borrowed chords (♭VII, iv in major) and secondary dominants.
 - Strumming / rhythm patterns for the looper.

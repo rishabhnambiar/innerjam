@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background fills full square — works as maskable icon (safe zone = inner 80%) -->
+  <rect width="512" height="512" fill="#7B3F20"/>
+  <!-- Note head: oval, tilted ~20° left, center at (220,345) -->
+  <ellipse cx="220" cy="345" rx="70" ry="48"
+           transform="rotate(-20 220 345)" fill="#FFF6EA"/>
+  <!-- Stem: right edge of head up to flag -->
+  <rect x="278" y="108" width="16" height="240" rx="8" fill="#FFF6EA"/>
+  <!-- Flag: cubic bezier curling right then back down -->
+  <path d="M 294 108 C 410 150 395 232 294 268"
+        fill="none" stroke="#FFF6EA" stroke-width="20" stroke-linecap="round"/>
+</svg>

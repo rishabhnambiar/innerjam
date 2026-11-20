@@ -1,0 +1,32 @@
+{
+  "name": "Innerjam",
+  "short_name": "Innerjam",
+  "description": "Scales and chords for quick jams",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F6F1EA",
+  "theme_color": "#7B3F20",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot.png",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
+}
