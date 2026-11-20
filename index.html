@@ -853,7 +853,8 @@ function playDegree(i, t, vel, size){
     const cv = currentVoicing(i); if(!cv) return;
     if(state.gMode === "dreamy"){
       const bus = getDreamyBus();
-      cv.v.frets.forEach((f, s) => { if(f !== null) guitarNote(OPEN_MIDI[s] + f, t, 0.19 * vel, bus); });
+      let j = 0;
+      cv.v.frets.forEach((f, s) => { if(f !== null){ guitarNote(OPEN_MIDI[s] + f, t + j * 0.011, 0.19 * vel, bus); j++; } });
     } else {
       const finger = state.gMode === "finger";
       let j = 0;
